@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: warehouse-flow-engine
+
+warehouse:
+  nodes:
+    - id: ENTRY
+      type: ENTRY
+    - id: C01
+      type: CONVEYOR
+    - id: C02
+      type: CONVEYOR
+    - id: C03
+      type: CONVEYOR
+    - id: C04
+      type: CONVEYOR
+    - id: C05
+      type: CONVEYOR
+    - id: C06
+      type: CONVEYOR
+    - id: C09
+      type: CONVEYOR
+    - id: C10
+      type: CONVEYOR
+    - id: C11
+      type: CONVEYOR
+    - id: PACKING-01
+      type: PACKING
+
+  edges:
+    - from: ENTRY
+      to: C01
+      travel-time-seconds: 2
+    - from: C01
+      to: C02
+      travel-time-seconds: 2
+    - from: C02
+      to: C03
+      travel-time-seconds: 2
+    - from: C03
+      to: C04
+      travel-time-seconds: 3
+    - from: C04
+      to: C05
+      travel-time-seconds: 3
+    - from: C05
+      to: C06
+      travel-time-seconds: 3
+    - from: C06
+      to: C11
+      travel-time-seconds: 2
+    - from: C03
+      to: C09
+      travel-time-seconds: 2
+    - from: C09
+      to: C10
+      travel-time-seconds: 2
+    - from: C10
+      to: C11
+      travel-time-seconds: 2
+    - from: C11
+      to: PACKING-01
+      travel-time-seconds: 2
