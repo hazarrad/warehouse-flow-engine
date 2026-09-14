@@ -19,7 +19,6 @@ public class WarehouseGraph {
 
     public WarehouseGraph(WarehouseGraphConfig warehouseGraphConfig) {
         this.warehouseGraphConfig = warehouseGraphConfig;
-        System.out.println("heeeeeeeeeeey " + warehouseGraphConfig.getNodes().get(2));
         this.nodes = warehouseGraphConfig.getNodes().stream().collect(Collectors.toMap(Node::id, Function.identity()));
 
         this.edges = warehouseGraphConfig.getEdges();
