@@ -1,5 +1,6 @@
 package com.warehouse.flow.engine.routes;
 
+import com.warehouse.flow.engine.conveyor.ConveyorStateService;
 import com.warehouse.flow.engine.topology.Edge;
 import com.warehouse.flow.engine.topology.NodeDistance;
 import com.warehouse.flow.engine.topology.WarehouseGraph;
@@ -13,9 +14,11 @@ import java.util.*;
 public class RoutingService {
 
     private final WarehouseGraph warehouseGraph;
+    private final ConveyorStateService conveyorStateService;
 
-    public RoutingService(WarehouseGraph warehouseGraph) {
+    public RoutingService(WarehouseGraph warehouseGraph, ConveyorStateService conveyorStateService) {
         this.warehouseGraph = warehouseGraph;
+        this.conveyorStateService = conveyorStateService;
     }
 
     private void validateNodes(String start, String destination) {
@@ -56,6 +59,10 @@ public class RoutingService {
             //Explore outgoing edges
             for (Edge edge : warehouseGraph.getOutgoingEdges(currentNode)) {
 
+                if (!conveyorStateService.isAvailable(edge.from(), edge.to())) {
+                    continue;
+                }
+
                 int newDistance = currentDistance + edge.travelTimeSeconds();
                 int existingDistance = distances.getOrDefault(edge.to(), Integer.MAX_VALUE);
 
@@ -71,8 +78,8 @@ public class RoutingService {
             throw new IllegalStateException("No route found from " + start + " to " + destination);
         }
 
-        List<String> route = buildRoute(start, destination, previousNode);
 
+        List<String> route = buildRoute(start, destination, previousNode);
         return new RouteResponse(tote.id(), route, distances.get(destination));
     }
 

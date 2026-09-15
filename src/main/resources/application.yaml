@@ -31,33 +31,44 @@ warehouse:
     - from: ENTRY
       to: C01
       travel-time-seconds: 2
+      capacity: 3
     - from: C01
       to: C02
       travel-time-seconds: 2
+      capacity: 3
     - from: C02
       to: C03
       travel-time-seconds: 2
+      capacity: 3
     - from: C03
       to: C04
       travel-time-seconds: 3
+      capacity: 3
     - from: C04
       to: C05
       travel-time-seconds: 3
+      capacity: 3
     - from: C05
       to: C06
       travel-time-seconds: 3
+      capacity: 3
     - from: C06
       to: C11
       travel-time-seconds: 2
+      capacity: 3
     - from: C03
       to: C09
       travel-time-seconds: 2
+      capacity: 3
     - from: C09
       to: C10
       travel-time-seconds: 2
+      capacity: 3
     - from: C10
       to: C11
       travel-time-seconds: 2
+      capacity: 3
     - from: C11
       to: PACKING-01
       travel-time-seconds: 2
+      capacity: 3

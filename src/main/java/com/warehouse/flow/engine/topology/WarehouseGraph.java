@@ -33,8 +33,13 @@ public class WarehouseGraph {
         return node;
     }
 
+    public List<Edge> getEdges() {
+        return edges;
+    }
+
     public List<Edge> getOutgoingEdges(String nodeId) {
 
         return edges.stream().filter(edge -> edge.from().equals(nodeId)).toList();
     }
+
 }
