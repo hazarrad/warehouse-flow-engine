@@ -72,3 +72,6 @@ warehouse:
       to: PACKING-01
       travel-time-seconds: 2
       capacity: 3
+  congestion:
+    medium-threshold: 0.5
+    high-threshold: 0.8
