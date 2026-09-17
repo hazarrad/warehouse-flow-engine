@@ -5,6 +5,7 @@ import java.util.List;
 public record RouteResponse(
         String toteId,
         List<String> route,
-        int estimatedTravelTimeSeconds
+        int estimatedTravelTimeSeconds,
+        int routingCost
 ) {
 }

@@ -9,4 +9,8 @@ public record ConveyorState(
     public boolean isAvailable() {
         return status == ConveyorStatus.ACTIVE && occupancy < capacity;
     }
+
+    public double congestionRatio() {
+        return (double) occupancy / capacity;
+    }
 }

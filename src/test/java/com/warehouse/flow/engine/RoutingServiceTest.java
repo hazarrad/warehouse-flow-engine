@@ -134,4 +134,41 @@ class RoutingServiceTest {
         assertEquals(13, response.estimatedTravelTimeSeconds());
     }
 
+
+    @Test
+    void shouldUseShortestRouteWhenConveyorIsNotCongested() {
+
+        Tote tote = new Tote("TOTE-001", "C03", "PACKING-01", TotePriority.NORMAL, ToteStatus.CREATED);
+        RouteResponse response = routingService.calculateRoute(tote);
+
+        assertEquals(List.of("C03", "C09", "C10", "C11", "PACKING-01"), response.route());
+        assertEquals(8, response.estimatedTravelTimeSeconds());
+    }
+
+    @Test
+    void shouldConsiderCongestionWhenSelectingRoute() {
+
+        conveyorStateService.enter("C03", "C09");
+        conveyorStateService.enter("C03", "C09");
+
+        Tote tote = new Tote("TOTE-002", "C03", "PACKING-01", TotePriority.NORMAL, ToteStatus.CREATED);
+        RouteResponse response = routingService.calculateRoute(tote);
+
+        assertEquals(List.of("C03", "C09", "C10", "C11", "PACKING-01"), response.route());
+        assertEquals(8, response.estimatedTravelTimeSeconds());
+    }
+
+    @Test
+    void shouldAvoidFullConveyorWhenRouting() {
+
+        conveyorStateService.enter("C03", "C09");
+        conveyorStateService.enter("C03", "C09");
+        conveyorStateService.enter("C03", "C09");
+
+        Tote tote = new Tote("TOTE-003", "C03", "PACKING-01", TotePriority.NORMAL, ToteStatus.CREATED);
+        RouteResponse response = routingService.calculateRoute(tote);
+
+        assertEquals(List.of("C03", "C04", "C05", "C06", "C11", "PACKING-01"), response.route());
+        assertEquals(13, response.estimatedTravelTimeSeconds());
+    }
 }

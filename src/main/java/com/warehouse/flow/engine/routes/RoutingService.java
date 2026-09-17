@@ -35,9 +35,12 @@ public class RoutingService {
 
         Map<String, Integer> distances = new HashMap<>();
         Map<String, String> previousNode = new HashMap<>();
+        // Actual physical travel time for the selected route
+        Map<String, Integer> travelTimes = new HashMap<>();
 
         PriorityQueue<NodeDistance> queue = new PriorityQueue<>(Comparator.comparingInt(NodeDistance::distance));
         distances.put(start, 0);
+        travelTimes.put(start, 0);
         queue.add(new NodeDistance(start, 0));
 
         while (!queue.isEmpty()) {
@@ -63,11 +66,16 @@ public class RoutingService {
                     continue;
                 }
 
-                int newDistance = currentDistance + edge.travelTimeSeconds();
+                double congestionRatio = conveyorStateService.getState(edge.from(), edge.to()).congestionRatio();
+                double congestionFactor = 1.0 + congestionRatio;
+                int newDistance = currentDistance + (int) Math.ceil(edge.travelTimeSeconds() * congestionFactor);
+                int newTravelTime = travelTimes.get(currentNode) + edge.travelTimeSeconds();
+//                int newDistance = currentDistance + edge.travelTimeSeconds();
                 int existingDistance = distances.getOrDefault(edge.to(), Integer.MAX_VALUE);
 
                 if (newDistance < existingDistance) {
                     distances.put(edge.to(), newDistance);
+                    travelTimes.put(edge.to(), newTravelTime);
                     previousNode.put(edge.to(), currentNode);
                     queue.add(new NodeDistance(edge.to(), newDistance));
                 }
@@ -80,7 +88,7 @@ public class RoutingService {
 
 
         List<String> route = buildRoute(start, destination, previousNode);
-        return new RouteResponse(tote.id(), route, distances.get(destination));
+        return new RouteResponse(tote.id(), route, travelTimes.get(destination), distances.get(destination));
     }
 
     private List<String> buildRoute(String start, String destination, Map<String, String> previousNode) {
