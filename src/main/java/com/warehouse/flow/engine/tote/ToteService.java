@@ -1,6 +1,7 @@
 package com.warehouse.flow.engine.tote;
 
 import com.warehouse.flow.engine.conveyor.ConveyorStateService;
+import com.warehouse.flow.engine.recovery.RecoveryService;
 import com.warehouse.flow.engine.routes.RoutingService;
 import com.warehouse.flow.engine.topology.Edge;
 import com.warehouse.flow.engine.topology.WarehouseGraph;
@@ -20,14 +21,16 @@ public class ToteService {
     private final ExecutorService executorService = Executors.newCachedThreadPool();
     private final WarehouseGraph warehouseGraph;
     private final ToteMovementSimulator movementSimulator;
+    private final RecoveryService recoveryService;
 
     private final Map<String, Tote> totes = new ConcurrentHashMap<>();
 
-    public ToteService(RoutingService routingService, ConveyorStateService conveyorStateService, WarehouseGraph warehouseGraph, ToteMovementSimulator movementSimulator) {
+    public ToteService(RoutingService routingService, ConveyorStateService conveyorStateService, WarehouseGraph warehouseGraph, ToteMovementSimulator movementSimulator, RecoveryService recoveryService) {
         this.routingService = routingService;
         this.conveyorStateService = conveyorStateService;
         this.warehouseGraph = warehouseGraph;
         this.movementSimulator = movementSimulator;
+        this.recoveryService = recoveryService;
     }
 
     public RouteResponse startTote(Tote tote) {
@@ -49,13 +52,17 @@ public class ToteService {
     private void executeRoute(String toteId, List<String> route) {
 
         for (int i = 0; i < route.size() - 1; i++) {
-
             String from = route.get(i);
             String to = route.get(i + 1);
+            Edge edge = findEdge(from, to);
+
             try {
-                Edge edge = warehouseGraph.getOutgoingEdges(from).stream().filter(e -> e.to().equals(to)).findFirst().orElseThrow();
                 moveTote(toteId, edge);
-            } catch (Exception e) {
+            } catch (IllegalStateException e) {
+                handleMovementFailure(toteId);
+                return;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 markAsWaiting(toteId);
                 return;
             }
@@ -63,7 +70,8 @@ public class ToteService {
         markAsDelivered(toteId);
     }
 
-    private void moveTote(String toteId, Edge edge) {
+
+    private void moveTote(String toteId, Edge edge) throws InterruptedException {
 
         Tote tote = getTote(toteId);
         String from = edge.from();
@@ -73,8 +81,9 @@ public class ToteService {
             throw new IllegalStateException("Tote " + toteId + " is not at " + from);
         }
 
-        // Enter conveyor
+        // Fails if conveyor is BLOCKED or FULL
         conveyorStateService.enter(from, to);
+
         updateTote(tote, from, ToteStatus.MOVING);
 
         // Simulate physical movement
@@ -86,6 +95,36 @@ public class ToteService {
 
         // Arrive at next node
         updateTote(getTote(toteId), to, ToteStatus.MOVING);
+    }
+
+    public void resumeTote(String toteId, List<String> route) {
+
+        Tote tote = getTote(toteId);
+        if (tote.status() != ToteStatus.WAITING) {
+            throw new IllegalStateException("Tote is not waiting: " + toteId);
+        }
+
+        updateTote(tote, tote.currentNode(), ToteStatus.MOVING);
+        executorService.submit(() -> executeRoute(toteId, route));
+    }
+
+    private Edge findEdge(String from, String to) {
+
+        return warehouseGraph.getOutgoingEdges(from).stream().filter(edge -> edge.to().equals(to)).findFirst().orElseThrow(() -> new IllegalStateException("Unknown edge: " + from + " -> " + to));
+    }
+
+    private void handleMovementFailure(String toteId) {
+
+        Tote tote = getTote(toteId);
+        markAsWaiting(toteId);
+
+        try {
+            RouteResponse recoveryRoute = recoveryService.calculateRecoveryRoute(getTote(toteId));
+            resumeTote(toteId, recoveryRoute.route());
+        } catch (Exception e) {
+            // No alternative route available
+            // Tote remains WAITING
+        }
     }
 
     private void markAsDelivered(String toteId) {

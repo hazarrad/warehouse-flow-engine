@@ -1,6 +1,7 @@
 package com.warehouse.flow.engine;
 
 import com.warehouse.flow.engine.conveyor.ConveyorStateService;
+import com.warehouse.flow.engine.recovery.RecoveryService;
 import com.warehouse.flow.engine.routes.RoutingService;
 import com.warehouse.flow.engine.topology.Edge;
 import com.warehouse.flow.engine.topology.WarehouseGraph;
@@ -35,9 +36,13 @@ class ToteServiceTest {
     @Mock
     private ToteMovementSimulator movementSimulator;
 
+    @Mock
+    private RecoveryService recoveryService;
+
+
     @BeforeEach
     void setUp() {
-        toteService = new ToteService(routingService, conveyorStateService, warehouseGraph, movementSimulator);
+        toteService = new ToteService(routingService, conveyorStateService, warehouseGraph, movementSimulator, recoveryService);
     }
 
     @Test
@@ -195,6 +200,50 @@ class ToteServiceTest {
         verify(conveyorStateService, timeout(1000)).leave("C09", "C10");
     }
 
+    @Test
+    void shouldRecoverAndDeliverToteAfterConveyorBlockage() throws Exception {
+
+        // Given
+        Tote tote = new Tote("TOTE-001", "C03", "PACKING-01", TotePriority.NORMAL, ToteStatus.CREATED);
+        RouteResponse initialRoute = new RouteResponse("TOTE-001", List.of("C03", "C09", "C10", "C11", "PACKING-01"), 8, 8);
+        RouteResponse recoveryRoute = new RouteResponse("TOTE-001", List.of("C03", "C04", "C05", "C06", "C11", "PACKING-01"), 13, 13);
+
+        when(routingService.calculateRoute(tote)).thenReturn(initialRoute);
+        when(recoveryService.calculateRecoveryRoute(any(Tote.class))).thenReturn(recoveryRoute);
+        //Only the edges that ToteService actually needs, to resolve with findEdge().
+        when(warehouseGraph.getOutgoingEdges("C03")).thenReturn(List.of(new Edge("C03", "C09", 2, 2), new Edge("C03", "C04", 3, 2)));
+        when(warehouseGraph.getOutgoingEdges("C04")).thenReturn(List.of(new Edge("C04", "C05", 3, 2)));
+        when(warehouseGraph.getOutgoingEdges("C05")).thenReturn(List.of(new Edge("C05", "C06", 3, 2)));
+        when(warehouseGraph.getOutgoingEdges("C06")).thenReturn(List.of(new Edge("C06", "C11", 2, 2)));
+        when(warehouseGraph.getOutgoingEdges("C11")).thenReturn(List.of(new Edge("C11", "PACKING-01", 2, 2)));
+
+        //C03 -> C09 is blocked
+        doAnswer(invocation -> {
+            String from = invocation.getArgument(0);
+            String to = invocation.getArgument(1);
+            if (from.equals("C03") && to.equals("C09")) {
+                throw new IllegalStateException("Conveyor is not available");
+            }
+            return null;
+        }).when(conveyorStateService).enter(anyString(), anyString());
+
+        doNothing().when(conveyorStateService).leave(anyString(), anyString());
+        doNothing().when(movementSimulator).move(anyInt());
+
+        // When
+        toteService.startTote(tote);
+
+        // Then
+        verify(recoveryService, timeout(1000)).calculateRecoveryRoute(any(Tote.class));
+        verify(movementSimulator, timeout(1000).times(5)).move(anyInt());
+        verify(conveyorStateService).enter("C03", "C04");
+        verify(conveyorStateService).enter("C04", "C05");
+        verify(conveyorStateService).enter("C05", "C06");
+        verify(conveyorStateService).enter("C06", "C11");
+        verify(conveyorStateService).enter("C11", "PACKING-01");
+
+        assertEquals(ToteStatus.DELIVERED, toteService.getTote("TOTE-001").status());
+    }
 
     private Tote createTote(String id, String currentNode, String destination) {
         return new Tote(id, currentNode, destination, TotePriority.NORMAL, ToteStatus.CREATED);

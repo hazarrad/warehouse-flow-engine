@@ -24,7 +24,6 @@ public class ToteController {
         return routingService.calculateRoute(tote);
     }
 
-
     @PostMapping("/{toteId}/start")
     public RouteResponse startTote(@PathVariable String toteId, @Valid @RequestBody ToteRouteRequest request) {
 
@@ -37,4 +36,5 @@ public class ToteController {
     public Tote getTote(@PathVariable String toteId) {
         return toteService.getTote(toteId);
     }
+
 }
