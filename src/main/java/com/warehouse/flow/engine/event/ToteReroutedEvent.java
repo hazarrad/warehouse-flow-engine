@@ -7,4 +7,10 @@ public record ToteReroutedEvent(
         String currentNode,
         String destination,
         List<String> route
-) implements WarehouseEvent  {}
+) implements WarehouseEvent  {
+
+    @Override
+    public WarehouseEventType eventType() {
+        return WarehouseEventType.TOTE_REROUTED;
+    }
+}

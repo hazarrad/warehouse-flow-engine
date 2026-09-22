@@ -4,4 +4,10 @@ public record ToteWaitingEvent(
         String toteId,
         String currentNode,
         String destination
-) implements WarehouseEvent {}
+) implements WarehouseEvent {
+
+    @Override
+    public WarehouseEventType eventType() {
+        return WarehouseEventType.TOTE_WAITING;
+    }
+}

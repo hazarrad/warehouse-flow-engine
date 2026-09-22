@@ -1,4 +1,11 @@
 package com.warehouse.flow.engine.event;
 
-public interface WarehouseEventEnvelope {
+import java.time.Instant;
+
+public record WarehouseEventEnvelope(
+        String eventId,
+        String eventType,
+        Instant timestamp,
+        WarehouseEvent payload
+) {
 }
