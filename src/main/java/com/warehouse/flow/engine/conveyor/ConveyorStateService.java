@@ -1,6 +1,9 @@
 package com.warehouse.flow.engine.conveyor;
 
 import com.warehouse.flow.engine.configuration.CongestionConfig;
+import com.warehouse.flow.engine.event.ConveyorBlockedEvent;
+import com.warehouse.flow.engine.event.ConveyorUnblockedEvent;
+import com.warehouse.flow.engine.event.EventPublisher;
 import com.warehouse.flow.engine.topology.Edge;
 import com.warehouse.flow.engine.topology.WarehouseGraph;
 import org.springframework.stereotype.Service;
@@ -13,9 +16,12 @@ public class ConveyorStateService {
 
     private final Map<String, ConveyorState> states = new ConcurrentHashMap<>();
 
+    private final EventPublisher eventPublisher;
     private CongestionConfig congestionConfig;
-    public ConveyorStateService(WarehouseGraph warehouseGraph, CongestionConfig congestionConfig) {
+
+    public ConveyorStateService(WarehouseGraph warehouseGraph, CongestionConfig congestionConfig, EventPublisher eventPublisher) {
         this.congestionConfig = congestionConfig;
+        this.eventPublisher = eventPublisher;
         for (Edge edge : warehouseGraph.getEdges()) {
             states.put(key(edge), new ConveyorState(edge.capacity(), 0, ConveyorStatus.ACTIVE));
         }
@@ -39,15 +45,15 @@ public class ConveyorStateService {
     public void block(String from, String to) {
 
         ConveyorState current = getState(from, to);
-
         states.put(key(from, to), new ConveyorState(current.capacity(), current.occupancy(), ConveyorStatus.BLOCKED));
+        eventPublisher.publish(new ConveyorBlockedEvent(from, to));
     }
 
     public void unblock(String from, String to) {
 
         ConveyorState current = getState(from, to);
-
         states.put(key(from, to), new ConveyorState(current.capacity(), current.occupancy(), ConveyorStatus.ACTIVE));
+        eventPublisher.publish(new ConveyorUnblockedEvent(from, to));
     }
 
     public void reset() {

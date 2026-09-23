@@ -1,6 +1,7 @@
 package com.warehouse.flow.engine.tote;
 
 import com.warehouse.flow.engine.conveyor.ConveyorStateService;
+import com.warehouse.flow.engine.event.*;
 import com.warehouse.flow.engine.recovery.RecoveryService;
 import com.warehouse.flow.engine.routes.RoutingService;
 import com.warehouse.flow.engine.topology.Edge;
@@ -22,15 +23,17 @@ public class ToteService {
     private final WarehouseGraph warehouseGraph;
     private final ToteMovementSimulator movementSimulator;
     private final RecoveryService recoveryService;
+    private final EventPublisher eventPublisher;
 
     private final Map<String, Tote> totes = new ConcurrentHashMap<>();
 
-    public ToteService(RoutingService routingService, ConveyorStateService conveyorStateService, WarehouseGraph warehouseGraph, ToteMovementSimulator movementSimulator, RecoveryService recoveryService) {
+    public ToteService(RoutingService routingService, ConveyorStateService conveyorStateService, WarehouseGraph warehouseGraph, ToteMovementSimulator movementSimulator, RecoveryService recoveryService, EventPublisher eventPublisher) {
         this.routingService = routingService;
         this.conveyorStateService = conveyorStateService;
         this.warehouseGraph = warehouseGraph;
         this.movementSimulator = movementSimulator;
         this.recoveryService = recoveryService;
+        this.eventPublisher = eventPublisher;
     }
 
     public RouteResponse startTote(Tote tote) {
@@ -43,7 +46,8 @@ public class ToteService {
         RouteResponse route = routingService.calculateRoute(tote);
         Tote movingTote = new Tote(tote.id(), tote.currentNode(), tote.destination(), tote.priority(), ToteStatus.MOVING);
         totes.put(tote.id(), movingTote);
-
+        // add event
+        eventPublisher.publish(new ToteStartedEvent(tote.id(), tote.currentNode(), tote.destination()));
         executorService.submit(() -> executeRoute(tote.id(), route.route()));
 
         return route;
@@ -120,6 +124,7 @@ public class ToteService {
 
         try {
             RouteResponse recoveryRoute = recoveryService.calculateRecoveryRoute(getTote(toteId));
+            eventPublisher.publish(new ToteReroutedEvent(tote.id(), tote.currentNode(), tote.destination(), recoveryRoute.route()));
             resumeTote(toteId, recoveryRoute.route());
         } catch (Exception e) {
             // No alternative route available
@@ -131,12 +136,14 @@ public class ToteService {
 
         Tote tote = getTote(toteId);
         updateTote(tote, tote.currentNode(), ToteStatus.DELIVERED);
+        eventPublisher.publish(new ToteDeliveredEvent(tote.id(), tote.destination()));
     }
 
     private void markAsWaiting(String toteId) {
 
         Tote tote = getTote(toteId);
         updateTote(tote, tote.currentNode(), ToteStatus.WAITING);
+        eventPublisher.publish(new ToteWaitingEvent(tote.id(), tote.currentNode(), tote.destination()));
     }
 
     private void updateTote(Tote tote, String currentNode, ToteStatus status) {

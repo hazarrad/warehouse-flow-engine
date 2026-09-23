@@ -1,6 +1,7 @@
 package com.warehouse.flow.engine;
 
 import com.warehouse.flow.engine.conveyor.ConveyorStateService;
+import com.warehouse.flow.engine.event.*;
 import com.warehouse.flow.engine.recovery.RecoveryService;
 import com.warehouse.flow.engine.routes.RoutingService;
 import com.warehouse.flow.engine.topology.Edge;
@@ -9,14 +10,14 @@ import com.warehouse.flow.engine.tote.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,10 +40,13 @@ class ToteServiceTest {
     @Mock
     private RecoveryService recoveryService;
 
+    @Mock
+    private EventPublisher eventPublisher;
+
 
     @BeforeEach
     void setUp() {
-        toteService = new ToteService(routingService, conveyorStateService, warehouseGraph, movementSimulator, recoveryService);
+        toteService = new ToteService(routingService, conveyorStateService, warehouseGraph, movementSimulator, recoveryService, eventPublisher);
     }
 
     @Test
@@ -56,6 +60,7 @@ class ToteServiceTest {
         toteService.startTote(tote);
 
         verify(routingService).calculateRoute(tote);
+        verify(eventPublisher).publish(any(ToteStartedEvent.class));
         assertEventually("TOTE-001", result -> assertEquals(ToteStatus.MOVING, result.status()));
     }
 
@@ -73,7 +78,7 @@ class ToteServiceTest {
 
         verify(movementSimulator, timeout(1000)).move(0);
         verify(conveyorStateService, timeout(1000)).enter("C03", "C09");
-
+        verify(eventPublisher).publish(any(ToteDeliveredEvent.class));
         Tote result = toteService.getTote("TOTE-001");
 
         assertEquals("C09", result.currentNode());
@@ -99,6 +104,8 @@ class ToteServiceTest {
         verify(conveyorStateService, timeout(1000)).leave("C03", "C09");
         verify(conveyorStateService, timeout(1000)).enter("C09", "C10");
         verify(conveyorStateService, timeout(1000)).leave("C09", "C10");
+        verify(eventPublisher).publish(any(ToteDeliveredEvent.class));
+
     }
 
     @Test
@@ -117,6 +124,8 @@ class ToteServiceTest {
             assertEquals("C09", result.currentNode());
             assertEquals(ToteStatus.DELIVERED, result.status());
         });
+
+        verify(eventPublisher).publish(any(ToteDeliveredEvent.class));
     }
 
     @Test
@@ -139,6 +148,16 @@ class ToteServiceTest {
         });
 
         verify(movementSimulator, never()).move(anyInt());
+        verify(eventPublisher).publish(any(ToteWaitingEvent.class));
+
+        // WarehouseEvent
+        ArgumentCaptor<WarehouseEvent> captor = ArgumentCaptor.forClass(WarehouseEvent.class);
+        verify(eventPublisher, timeout(1000).times(2)).publish(captor.capture());
+        assertInstanceOf(ToteWaitingEvent.class, captor.getValue());
+        ToteWaitingEvent event = (ToteWaitingEvent) captor.getValue();
+        assertEquals("TOTE-001", event.toteId());
+        assertEquals("C03", event.currentNode());
+        assertEquals("C09", event.destination());
     }
 
     @Test
